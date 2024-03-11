@@ -23,6 +23,14 @@ export async function node(
     k: 0
   };
 
+  if (isFaulty) {
+    state.x = null;
+    state.decided = null;
+    state.k = null;
+  }
+
+  let receivedMessages: number[] = [];
+
   // 1.
   // TODO implement this
   // this route allows retrieving the current status of the node
@@ -42,13 +50,12 @@ export async function node(
 
   // TODO implement this
   // this route allows the node to receive messages from other nodes
-  node.post("/message", (req, res) => {
+  node.post("/message", (req: Request, res: Response) => {
     if(isFaulty) {
       return res.status(500).send("faulty");
     } else{
     const message = req.body;
-    // process the message
-    // ...
+    receivedMessages.push(message);
     return res.send("success");
     }
   });
@@ -59,8 +66,9 @@ export async function node(
     if (!nodesAreReady()) {
       return res.status(500).send("not all nodes are ready");
     } else {
-      // start the consensus algorithm
-      // ...
+      if (!isFaulty) {
+        consensus();
+      }
       return res.status(200).send("success");
     }
   });
@@ -68,14 +76,129 @@ export async function node(
   // TODO implement this
   // this route is used to stop the consensus algorithm
   node.get("/stop", async (req, res) => {
-    if (!nodesAreReady()) {
-      return res.status(500).send("not all nodes are ready");
-    } else {
-      // stop the consensus algorithm
-      // ...
-      return res.status(200).send("success");
-    }
+    state.killed = true;
+    res.status(200).send("success");
   });
+
+  function processMessagesStep1() {
+    if (receivedMessages.length >= N - F) {
+      // Sufficient messages received
+      // Decide on a value based on received messages
+      let count0 = 0;
+      let count1 = 0;
+      for (const message of receivedMessages) {
+        if (message === 0) {
+          count0++;
+        } 
+        if (message === 1) {
+          count1++;
+        }
+      }
+      if (2 * count0 > N) {
+        return 0;
+      }
+      if (2 * count1 > N) {
+        return 1;
+      }
+      else {
+        return -1;
+      }
+    }
+    return null;
+  }
+
+  function processMessagesStep2() {
+    if (receivedMessages.length >= N - F) {
+      // Sufficient messages received
+      // Decide on a value based on received messages
+      let count0 = 0;
+      let count1 = 0;
+      for (const message of receivedMessages) {
+        if (message === 0) {
+          count0++;
+        } 
+        if (message === 1) {
+          count1++;
+        }
+      }
+      if (count0 > F) {
+        state.decided = true;
+        return 0;
+      }
+      if (count1 > F) {
+        state.decided = true;
+        return 1;
+      }
+      else {
+        if (count0 > 0)
+        {
+          return 0;
+        }
+        if (count1 > 0)
+        {
+          return 1;
+        }
+        else {
+          return Math.floor(Math.random() * 2);
+        }
+      }
+    }
+    return null;
+  }
+
+  // Function to initiate the consensus algorithm
+  function consensus() {
+    while(!state.decided && !state.killed) {
+      if (state.k != null){
+        state.k = state.k + 1;
+        receivedMessages = [];
+      }
+      for (let i = 0; i < N; i++) {
+        if (i !== nodeId) {
+          sendMessage(i);
+        }
+      }
+      let temp: any = null;
+      while (temp === null && !state.killed) {
+        temp = processMessagesStep1();
+      }
+      state.x = temp;
+      receivedMessages = [];
+      for (let i = 0; i < N; i++) {
+        if (i !== nodeId) {
+          sendMessage(i);
+        }
+      }
+      temp = null;
+      while (temp === null && !state.killed) {
+        temp = processMessagesStep2();
+      }
+      state.x = temp;
+    }
+  }
+
+function sendMessage(destinationNodeId: number) {
+  fetch(`http://localhost:${BASE_NODE_PORT + destinationNodeId}/message`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(state.x),
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Failed to send message');
+    }
+    return response.json();
+  })
+  /*.then(data => {
+    console.log('Message sent successfully');
+  })
+  .catch(error => {
+    console.error('Error sending message:', error);
+  })*/;
+}
+
   
 
   // start the server
