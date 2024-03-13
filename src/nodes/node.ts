@@ -3,6 +3,7 @@ import express, { Request, Response } from "express";
 import { BASE_NODE_PORT } from "../config";
 import { Value, NodeState } from "../types";
 import { sendMessageToAll, consensusStep1, consensusStep2, areAllNodesDecided } from "../functions";
+import { delay } from "../utils";
 
 export async function node(
   nodeId: number, // the ID of the node
@@ -55,9 +56,7 @@ export async function node(
   // TODO implement this
   // this route allows the node to receive messages from other nodes
   node.post("/message", (req: Request, res: Response) => {
-    if (isFaulty) {
-      return res.status(500).send("faulty");
-    } else {
+    if (!isFaulty) {
       let { x, k, step } = req.body;
 
       if (step === 1 && !state.decided && !state.killed) {
@@ -85,27 +84,26 @@ export async function node(
         k = k + 1;
       }
 
-      if (state.decided) {
+      /*if (state.decided && !state.killed) {
         if (!areAllNodesDecided(nodeId, N, F)) {
           sendMessageToAll(step, nodeId, state, N);
         }
-      }
-      return res.status(200).send("success");
+      }*/
     }
+    res.status(200).send("success");
   });
 
   // TODO implement this
   // this route is used to start the consensus algorithm
   node.get("/start", async (req, res) => {
-    if (!nodesAreReady()) {
-      return res.status(500).send("not all nodes are ready");
-    } else {
-      if (!isFaulty) {
-        state.k = 1;
-        sendMessageToAll(1, nodeId, state, N);
-      }
-      return res.status(200).send("success");
+    while (!nodesAreReady()) {
+      await delay(5);
     }
+    if (!isFaulty) {
+      state.k = 1;
+      sendMessageToAll(1, nodeId, state, N);
+    }
+    return res.status(200).send("success");
   });
 
   // TODO implement this
