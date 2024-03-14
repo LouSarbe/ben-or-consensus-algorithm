@@ -2,8 +2,8 @@ import { BASE_NODE_PORT } from "./config";
 import { Value, NodeState } from "./types";
 
 export function consensusStep1(messages: Value[], state: NodeState, N: number) {
-  let count0 = messages.filter((el) => el == 0).length;
-  let count1 = messages.filter((el) => el == 1).length;
+  let count0 = messages.filter((el) => el === 0).length;
+  let count1 = messages.filter((el) => el === 1).length;
   if (2 * count0 > N) {
     state.x = 0;
   }
@@ -12,14 +12,14 @@ export function consensusStep1(messages: Value[], state: NodeState, N: number) {
     state.x = 1;
   }
   else {
-    state.x = '?';
+    state.x = "?";
   }
   return state.x;
 }
 
-export function consensusStep2(messsages: Value[], state: NodeState, F: number, N: number) {
-  let count0 = messsages.filter((el) => el == 0).length;
-  let count1 = messsages.filter((el) => el == 1).length;
+export function consensusStep2(messsages: Value[], state: NodeState, F: number) {
+  let count0 = messsages.filter((el) => el === 0).length;
+  let count1 = messsages.filter((el) => el === 1).length;
   if (count0 > F) {
     state.decided = true;
     state.x = 0;
@@ -42,23 +42,6 @@ export function consensusStep2(messsages: Value[], state: NodeState, F: number, 
   return state.x;
 }
 
-export async function areAllNodesDecided(nodeId: number, N: number, F: number) {
-  let decidedNodes = 0;
-  for (let i = 0; i < N; i++) {
-    if (i !== nodeId) {
-      const state = await fetch(
-        `http://localhost:${BASE_NODE_PORT + i}/getState`
-      )
-        .then((res) => res.json())
-        .then((json: any) => json as NodeState);
-      if (state.decided) {
-        decidedNodes++;
-      }
-    }
-  }
-  return decidedNodes === N - F - 1;
-}
-
 export function sendMessage(destinationNodeId: number, step: number, state: NodeState) {
   fetch(`http://localhost:${BASE_NODE_PORT + destinationNodeId}/message`, {
     method: 'POST',
@@ -69,7 +52,7 @@ export function sendMessage(destinationNodeId: number, step: number, state: Node
   });
 }
 
-export function sendMessageToAll(step: number, nodeId: number, state: NodeState, N: number) {
+export function sendMessageToAll(step: number, state: NodeState, N: number) {
   for (let i = 0; i < N; i++) {
     sendMessage(i, step, state);
   }

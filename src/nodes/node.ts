@@ -2,7 +2,7 @@ import bodyParser from "body-parser";
 import express, { Request, Response } from "express";
 import { BASE_NODE_PORT } from "../config";
 import { Value, NodeState } from "../types";
-import { sendMessageToAll, consensusStep1, consensusStep2, areAllNodesDecided } from "../functions";
+import { sendMessageToAll, consensusStep1, consensusStep2 } from "../functions";
 import { delay } from "../utils";
 
 export async function node(
@@ -34,8 +34,6 @@ export async function node(
   let messagesStep1: Map<number, Value[]> = new Map();
   let messagesStep2: Map<number, Value[]> = new Map();
 
-  // let receivedMessages: Value[] = [];
-
   // 1.
   // TODO implement this
   // this route allows retrieving the current status of the node
@@ -64,10 +62,9 @@ export async function node(
           messagesStep1.set(k, []);
         }
         messagesStep1.get(k)!.push(x);
-        let messages = messagesStep1.get(k)!;
-        if (messages.length >= N - F) {
-          state.x = consensusStep1(messages, state, N);
-          sendMessageToAll(2, nodeId, state, N);
+        if (messagesStep1.get(k)!.length >= N - F) {
+          state.x = consensusStep1(messagesStep1.get(k)!, state, N);
+          sendMessageToAll(2, state, N);
         }
       }
 
@@ -76,19 +73,12 @@ export async function node(
           messagesStep2.set(k, []);
         }
         messagesStep2.get(k)!.push(x);
-        let messages = messagesStep2.get(k)!;
-        if (messages.length >= N - F) {
-          consensusStep2(messages, state, F, N);
+        if (messagesStep2.get(k)!.length >= N - F) {
+          consensusStep2(messagesStep2.get(k)!, state, F);
+          state.k = state.k! + 1;
+          sendMessageToAll(1, state, N);
         }
-        sendMessageToAll(1, nodeId, state, N);
-        k = k + 1;
       }
-
-      /*if (state.decided && !state.killed) {
-        if (!areAllNodesDecided(nodeId, N, F)) {
-          sendMessageToAll(step, nodeId, state, N);
-        }
-      }*/
     }
     res.status(200).send("success");
   });
@@ -97,11 +87,11 @@ export async function node(
   // this route is used to start the consensus algorithm
   node.get("/start", async (req, res) => {
     while (!nodesAreReady()) {
-      await delay(5);
+      await delay(10);
     }
     if (!isFaulty) {
       state.k = 1;
-      sendMessageToAll(1, nodeId, state, N);
+      sendMessageToAll(1, state, N);
     }
     return res.status(200).send("success");
   });
