@@ -48,7 +48,19 @@ export async function node(
   // TODO implement this
   // get the current state of a node
   node.get("/getState", (req, res) => {
-    res.status(200).json(state);
+    if (isFaulty) {
+      res.status(200).json(state);
+    }
+    else {
+      if (!state.decided) {
+        res.status(200).json(state);
+      }
+      else {
+        state.k = state.k! - 1;
+        res.status(200).json(state);
+        state.k = state.k! + 1;
+      }
+    }
   });
 
   // TODO implement this
